@@ -9,8 +9,8 @@
 // @grant        GM_setValue
 // @grant        GM_registerMenuCommand
 // @run-at       document-start
-// @updateURL    https://raw.githubusercontent.com/yourusername/force-linkedin-language/main/force-linkedin-language.user.js
-// @downloadURL  https://raw.githubusercontent.com/yourusername/force-linkedin-language/main/force-linkedin-language.user.js
+// @updateURL    https://raw.githubusercontent.com/neveripe/force-linkedin-language/master/src/force-linkedin-language.user.js
+// @downloadURL  https://raw.githubusercontent.com/neveripe/force-linkedin-language/master/src/force-linkedin-language.user.js
 // ==/UserScript==
 
 (function() {
