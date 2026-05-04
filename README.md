@@ -1,17 +1,19 @@
 # Force LinkedIn Language
 
-A Tampermonkey userscript that prevents LinkedIn from automatically switching your display language when you click links from Google Search or regional subdomains. It forces LinkedIn to remain in your preferred language and includes a built-in UI for easy configuration.
+A Tampermonkey userscript that prevents LinkedIn from automatically switching your display language. When you click localized links (e.g., from `de.linkedin.com`), LinkedIn silently overrides your language preference. This script forces LinkedIn to stay in your chosen language — across **all** pages, including notifications and settings — by managing both the browser cookie and your account-level language setting.
 
 👉 **[Install the Script](https://raw.githubusercontent.com/neveripe/force-linkedin-language/master/src/force-linkedin-language.user.js)**
 
 ## Features
 
+*   **Full Language Override:** Changes both the `lang` cookie and your LinkedIn account language setting, ensuring all pages (including server-rendered ones like notifications) display in your preferred language.
 *   **URL Interception:** Automatically rewrites `?locale=` parameters in URLs before the page loads.
 *   **Subdomain Redirection:** Redirects regional subdomains (e.g., `de.linkedin.com`, `fr.linkedin.com`) to the main `www.linkedin.com` domain.
-*   **Race-Condition Proof:** Proactively manages LinkedIn's internal `lang` cookie to prevent server-side language resets.
-*   **Injected UI Menu:** Provides a clean, native-looking dropdown menu to select your preferred language.
-*   **Smart Autodetection:** Automatically detects your operating system/browser language and suggests the correct LinkedIn locale.
-*   **SPA Support:** Observes internal navigation to ensure the language remains locked while browsing the feed or profiles.
+*   **Race-Condition Proof:** Runs at `document-start` and proactively manages LinkedIn's `lang` cookie to prevent the UI from flashing in the wrong language.
+*   **34 Supported Locales:** Covers all LinkedIn-supported languages with a clean, native-looking dropdown for selection.
+*   **Smart Autodetection:** Automatically detects your OS/browser language and suggests the matching LinkedIn locale.
+*   **SPA Support:** Monitors navigation within LinkedIn's single-page app to keep the language locked across page transitions.
+*   **Fallback Banner:** If the automatic settings change fails, a dismissable banner appears with a direct link to change the setting manually.
 
 ## Prerequisites
 
@@ -44,13 +46,19 @@ By default, the script locks your LinkedIn to English (`en_US`). To change your 
 4. A modal will appear on the screen. Select your desired language from the dropdown. 
 5. Click **Save & Reload**. 
 
-The script will update your cookies and reload the page in your chosen language. This setting is saved permanently for future visits.
+The script will briefly navigate to LinkedIn's language settings page to update your account setting, then return you to your original page. This is a one-time operation per language change — your preference is saved permanently for future visits.
 
 ## How It Works
 
-When Google indexes LinkedIn profiles, it often links to localized versions. Clicking these links causes LinkedIn to overwrite your session cookie. 
+LinkedIn determines page language from two sources: a browser cookie (`lang`) and a server-side account setting. Simply overriding the cookie is not enough — server-rendered pages like notifications ignore it and use the account setting instead.
 
-This script runs at `document-start` (before the page renders). It intercepts the incoming URL, scrubs any foreign locale requests, forcefully rewrites the `.linkedin.com` `lang` cookie to match your saved preference, and seamlessly redirects the page to prevent the UI from flashing in the wrong language.
+This script handles both:
+
+1. **At page load** (`document-start`): intercepts the URL, scrubs foreign `?locale=` parameters, redirects regional subdomains to `www.linkedin.com`, and sets the `lang` cookie.
+2. **On language change**: navigates to LinkedIn's language settings page, programmatically changes the dropdown to your chosen locale (triggering LinkedIn's auto-save), then redirects back to your original page.
+3. **During browsing**: monitors SPA navigation to re-apply the cookie on route changes.
+
+For detailed technical documentation, see [LIMITATIONS.md](LIMITATIONS.md).
 
 ## License
 
