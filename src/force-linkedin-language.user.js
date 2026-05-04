@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Force LinkedIn Language (with UI)
 // @namespace    https://github.com/neveripe/force-linkedin-language
-// @version      3.0
+// @version      3.1
 // @description  Prevents LinkedIn from switching languages, features UI and robust locale autodetection.
 // @author       neveripe
 // @match        *://*.linkedin.com/*
@@ -53,6 +53,10 @@
         'zh_CN': 'Chinese (Simplified)',
         'zh_TW': 'Chinese (Traditional)'
     };
+
+    // LinkedIn uses legacy Java locale codes for some languages.
+    // Modern browsers return BCP 47 codes. This maps browser → LinkedIn.
+    const bcp47ToLinkedin = { 'he': 'iw', 'id': 'in' };
 
     const SETTINGS_PATH = '/mypreferences/d/settings/language';
     const defaultLocale = 'en_US';
@@ -150,7 +154,7 @@
         let detectedLang = null;
         if (navigator.language) {
             const parts = navigator.language.replace('-', '_').split('_');
-            const lang = parts[0].toLowerCase();
+            const lang = bcp47ToLinkedin[parts[0].toLowerCase()] || parts[0].toLowerCase();
             const region = parts[1] ? parts[1].toUpperCase() : null;
 
             if (region && linkedinLocales[`${lang}_${region}`]) {
