@@ -2,6 +2,8 @@
 
 A Tampermonkey userscript that prevents LinkedIn from automatically switching your display language when you click links from Google Search or regional subdomains. It forces LinkedIn to remain in your preferred language and includes a built-in UI for easy configuration.
 
+👉 **[Install the Script](https://raw.githubusercontent.com/neveripe/force-linkedin-language/main/force-linkedin-language.user.js)**
+
 ## Features
 
 *   **URL Interception:** Automatically rewrites `?locale=` parameters in URLs before the page loads.
