@@ -54,4 +54,4 @@ This script runs at `document-start` (before the page renders). It intercepts th
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the Zero-Clause BSD License - see the [LICENSE](LICENSE) file for details.
