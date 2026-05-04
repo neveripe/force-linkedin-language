@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Force LinkedIn Language (with UI)
 // @namespace    https://github.com/neveripe/force-linkedin-language
-// @version      2.3
+// @version      3.0
 // @description  Prevents LinkedIn from switching languages, features UI and robust locale autodetection.
 // @author       neveripe
 // @match        *://*.linkedin.com/*
@@ -18,31 +18,43 @@
 
     const linkedinLocales = {
         'ar_AE': 'Arabic',
+        'bn_IN': 'Bangla',
         'cs_CZ': 'Czech',
         'da_DK': 'Danish',
         'de_DE': 'German',
+        'el_GR': 'Greek',
         'en_US': 'English',
         'es_ES': 'Spanish',
+        'fa_IR': 'Persian',
         'fi_FI': 'Finnish',
         'fr_FR': 'French',
+        'hi_IN': 'Hindi',
+        'hu_HU': 'Hungarian',
         'in_ID': 'Indonesian',
         'it_IT': 'Italian',
+        'iw_IL': 'Hebrew',
         'ja_JP': 'Japanese',
         'ko_KR': 'Korean',
+        'mr_IN': 'Marathi',
         'ms_MY': 'Malay',
         'nl_NL': 'Dutch',
         'no_NO': 'Norwegian',
+        'pa_IN': 'Punjabi',
         'pl_PL': 'Polish',
         'pt_BR': 'Portuguese',
         'ro_RO': 'Romanian',
         'sv_SE': 'Swedish',
+        'te_IN': 'Telugu',
         'th_TH': 'Thai',
+        'tl_PH': 'Tagalog',
         'tr_TR': 'Turkish',
         'uk_UA': 'Ukrainian',
+        'vi_VN': 'Vietnamese',
         'zh_CN': 'Chinese (Simplified)',
         'zh_TW': 'Chinese (Traditional)'
     };
 
+    const SETTINGS_PATH = '/mypreferences/d/settings/language';
     const defaultLocale = 'en_US';
     let userLocale = GM_getValue('targetLocale', defaultLocale);
     let userCookieLang = GM_getValue('targetCookieLang', userLocale.replace('_', '-').toLowerCase());
@@ -53,6 +65,84 @@
             document.cookie = `lang="${expectedCookieString}"; domain=.linkedin.com; path=/; max-age=31536000; secure`;
         }
     };
+
+    // ---------------------------------------------------------
+    // SETTINGS PAGE AUTOMATION (Option A)
+    // Programmatically changes the account-level language setting
+    // by automating the native settings page dropdown.
+    // ---------------------------------------------------------
+
+    const isSettingsPage = window.location.pathname === SETTINGS_PATH;
+    const pendingPhase = GM_getValue('pendingLocaleChange', false);
+
+    if (pendingPhase && isSettingsPage) {
+        const targetLocale = GM_getValue('targetLocale', defaultLocale);
+        const returnUrl = GM_getValue('returnUrl', 'https://www.linkedin.com/feed/');
+
+        // Phase 'redirect': Ember reloaded the page after auto-save.
+        // The dropdown change was already applied — just go back.
+        if (pendingPhase === 'redirect') {
+            GM_setValue('pendingLocaleChange', false);
+            window.location.replace(returnUrl);
+            return;
+        }
+
+        // Phase 'apply': Find the dropdown and change it.
+        const applySettingWhenReady = (attempts) => {
+            const maxAttempts = 50; // 50 × 200ms = 10 seconds max wait
+            const dropdown = document.querySelector(
+                'select[data-test-setting-dropdown]'
+            ) || document.querySelector('.dropdown-container_interfaceLocale select');
+
+            if (!dropdown) {
+                if (attempts < maxAttempts) {
+                    setTimeout(() => applySettingWhenReady(attempts + 1), 200);
+                } else {
+                    // Fallback: give up and redirect back
+                    GM_setValue('pendingLocaleChange', false);
+                    console.warn('[Force LinkedIn Language] Settings dropdown not found after timeout. Redirecting back.');
+                    window.location.replace(returnUrl);
+                }
+                return;
+            }
+
+            // Already set correctly — just go back
+            if (dropdown.value === targetLocale) {
+                GM_setValue('pendingLocaleChange', false);
+                window.location.replace(returnUrl);
+                return;
+            }
+
+            // Advance to 'redirect' phase BEFORE dispatching the event.
+            // If Ember reloads the page, the next run will see 'redirect' and go back.
+            GM_setValue('pendingLocaleChange', 'redirect');
+
+            // Set the value and trigger Ember's change detection
+            dropdown.value = targetLocale;
+            dropdown.dispatchEvent(new Event('input', { bubbles: true }));
+            dropdown.dispatchEvent(new Event('change', { bubbles: true }));
+
+            // Backup timeout: if Ember does NOT reload the page, redirect manually.
+            setTimeout(() => {
+                GM_setValue('pendingLocaleChange', false);
+                window.location.replace(returnUrl);
+            }, 3000);
+        };
+
+        // Start polling once the DOM is minimally available
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => applySettingWhenReady(0));
+        } else {
+            applySettingWhenReady(0);
+        }
+
+        // Don't run the rest of the script during settings automation
+        return;
+    }
+
+    // ---------------------------------------------------------
+    // UI: Language Selector Modal
+    // ---------------------------------------------------------
 
     function showLocaleSelector() {
         if (document.getElementById('tm-locale-modal-overlay')) return;
@@ -93,7 +183,7 @@
 
         modal.innerHTML = `
             <h2 style="margin:0; font-size:18px; color:rgba(0,0,0,0.9);">Select LinkedIn Language</h2>
-            <p style="margin:0; font-size:14px; color:rgba(0,0,0,0.6);">Choose your preferred locale.</p>
+            <p style="margin:0; font-size:14px; color:rgba(0,0,0,0.6);">Choose your preferred locale. This will update both the cookie and your account setting.</p>
         `;
 
         const select = document.createElement('select');
@@ -128,7 +218,7 @@
             padding: '8px 16px', border: 'none', background: 'transparent', 
             color: 'rgba(0,0,0,0.6)', cursor: 'pointer', fontWeight: '600', fontSize: '14px'
         });
-        cancelBtn.onclick = () => document.body.removeChild(overlay);
+        cancelBtn.onclick = () => overlay.remove();
 
         const saveBtn = document.createElement('button');
         saveBtn.textContent = 'Save & Reload';
@@ -143,14 +233,14 @@
 
             GM_setValue('targetLocale', newLocale);
             GM_setValue('targetCookieLang', newCookieLang);
-            
             setLanguageCookie(newCookieLang);
 
-            setTimeout(() => {
-                const url = new URL(window.location.href);
-                url.searchParams.set('locale', newLocale);
-                window.location.replace(url.toString());
-            }, 150); 
+            // Store state for the settings page automation
+            GM_setValue('pendingLocaleChange', 'apply');
+            GM_setValue('returnUrl', window.location.href.split('?')[0]);
+
+            // Navigate to the settings page to change the server-side setting
+            window.location.href = 'https://www.linkedin.com' + SETTINGS_PATH;
         };
 
         btnContainer.appendChild(cancelBtn);
@@ -196,5 +286,58 @@
             setLanguageCookie(userCookieLang);
         }
     }).observe(document, {subtree: true, childList: true});
+
+    // ---------------------------------------------------------
+    // FALLBACK: Locale Mismatch Detection
+    // If the server-rendered language doesn't match our target
+    // after settings automation, show a one-time warning banner.
+    // ---------------------------------------------------------
+
+    const checkLocaleSync = () => {
+        const htmlLang = document.documentElement.lang;
+        const targetLangPrefix = userLocale.split('_')[0].toLowerCase();
+
+        // Only warn if there's a mismatch AND we haven't dismissed this warning
+        if (htmlLang && htmlLang !== targetLangPrefix) {
+            const dismissedFor = GM_getValue('mismatchDismissedFor', '');
+            if (dismissedFor === userLocale) return;
+
+            const banner = document.createElement('div');
+            Object.assign(banner.style, {
+                position: 'fixed', bottom: '16px', left: '50%', transform: 'translateX(-50%)',
+                background: '#b24020', color: '#fff', padding: '12px 20px', borderRadius: '8px',
+                zIndex: '2147483647', fontSize: '14px', boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                fontFamily: '-apple-system, system-ui, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                display: 'flex', alignItems: 'center', gap: '12px', maxWidth: '500px'
+            });
+
+            const targetName = linkedinLocales[userLocale] || userLocale;
+            banner.innerHTML = `
+                <span>⚠️ LinkedIn account language doesn't match your script setting (<b>${targetName}</b>).
+                <a href="https://www.linkedin.com${SETTINGS_PATH}" style="color:#fff;text-decoration:underline">Change it in Settings</a>.</span>
+            `;
+
+            const dismissBtn = document.createElement('button');
+            dismissBtn.textContent = '✕';
+            Object.assign(dismissBtn.style, {
+                background: 'transparent', border: 'none', color: '#fff',
+                fontSize: '18px', cursor: 'pointer', padding: '0 0 0 8px', lineHeight: '1'
+            });
+            dismissBtn.onclick = () => {
+                GM_setValue('mismatchDismissedFor', userLocale);
+                banner.remove();
+            };
+
+            banner.appendChild(dismissBtn);
+            document.body.appendChild(banner);
+        }
+    };
+
+    // Check after the page has fully loaded and rendered
+    if (document.readyState === 'complete') {
+        setTimeout(checkLocaleSync, 2000);
+    } else {
+        window.addEventListener('load', () => setTimeout(checkLocaleSync, 2000));
+    }
 
 })();
